@@ -1,0 +1,1402 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="手谈 GoBetween：爷爷奶奶和孙子孙女一起下的九路围棋，中英双语，免费。">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>手谈 GoBetween</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+<style>
+/* Layout: one-screen table-top app. Header strip; the board sits centered with the two
+   players' cards flanking it (stacking above/below on a phone); actions underneath.
+   Lesson mode swaps the cards for one lesson panel above the board.
+   Setup, tutorial and the end-of-game card open as sheets over the board. */
+:root {
+  --paper: #EDEFE7;        /* light celadon-grey ground, not cream */
+  --ink: #1F2A26;
+  --muted: #5F6C66;
+  --card: #F8F9F4;
+  --line: #CDD5CA;
+  --seal: #B8352F;         /* cinnabar seal red: the one accent */
+  --seal-ink: #FFFFFF;
+  --kaya: #E3B66C;         /* kaya board */
+  --kaya-edge: #C4934A;
+  --kaya-line: #6A4C22;
+  --stone-b: #1B2321;
+  --stone-b-hi: #4A5753;
+  --stone-w: #F7F4EC;
+  --stone-w-lo: #CFC8B8;
+  --good: #3C7A4F;
+  --shadow: 0 10px 30px rgba(31, 42, 38, .14);
+  --font-display: 'Ma Shan Zheng', 'STKaiti', 'KaiTi', 'Noto Serif SC', serif;
+  --font-body: 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #161B19; --ink: #ECEBE3; --muted: #9EA9A2; --card: #212927; --line: #36413C;
+    --seal: #D9594F; --seal-ink: #FFFFFF; --kaya: #D2A55F; --kaya-edge: #A97F3F; --kaya-line: #4E3718;
+    --stone-b: #141A18; --stone-b-hi: #3F4B47; --stone-w: #F1EDE3; --stone-w-lo: #BDB5A5; --good: #6DBA85;
+    --shadow: 0 10px 30px rgba(0, 0, 0, .45); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #161B19; --ink: #ECEBE3; --muted: #9EA9A2; --card: #212927; --line: #36413C;
+  --seal: #D9594F; --seal-ink: #FFFFFF; --kaya: #D2A55F; --kaya-edge: #A97F3F; --kaya-line: #4E3718;
+  --stone-b: #141A18; --stone-b-hi: #3F4B47; --stone-w: #F1EDE3; --stone-w-lo: #BDB5A5; --good: #6DBA85;
+  --shadow: 0 10px 30px rgba(0, 0, 0, .45); color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font-family: var(--font-body); font-size: 18px; line-height: 1.45;
+  -webkit-text-size-adjust: 100%;
+}
+body.big { font-size: 20px; }
+button { font: inherit; color: inherit; }
+.wrap {
+  min-height: 100%;
+  padding-block: 10px 28px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 14px;
+  max-width: 1100px; margin: 0 auto;
+}
+/* Header */
+.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.seal {
+  width: 52px; height: 52px; border-radius: 10px; background: var(--seal); color: var(--seal-ink);
+  font-family: var(--font-display); font-size: 30px; line-height: 1; display: grid; place-items: center;
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,.35); flex: none;
+}
+.brand h1 { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 34px; line-height: 1; letter-spacing: .04em; }
+.brand h1 small { display: block; font-family: var(--font-body); font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
+.tagline { color: var(--muted); font-size: 15px; margin: 0; }
+.tagline b { color: var(--ink); font-weight: 500; }
+.top-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.counter { font-size: 14px; color: var(--muted); line-height: 1.25; }
+.counter strong { color: var(--ink); font-size: 18px; font-variant-numeric: tabular-nums; }
+
+/* Buttons */
+.btn {
+  display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
+  min-height: 48px; padding: 6px 16px; border-radius: 12px; border: 1.5px solid var(--line);
+  background: var(--card); cursor: pointer; line-height: 1.15; gap: 1px; user-select: none;
+}
+.btn:hover { border-color: var(--muted); }
+.btn:focus-visible, .pt:focus-visible, input:focus-visible, .chip:focus-visible, .choice:focus-visible { outline: 3px solid var(--seal); outline-offset: 2px; }
+.btn[disabled] { opacity: .45; cursor: default; }
+.btn .zh { font-size: 18px; font-weight: 500; }
+.btn .en { font-size: 11.5px; color: var(--muted); letter-spacing: .04em; }
+.big .btn .zh { font-size: 20px; }
+.big .btn { min-height: 54px; }
+.btn.primary { background: var(--seal); border-color: var(--seal); color: var(--seal-ink); }
+.btn.primary .en { color: var(--seal-ink); opacity: .85; }
+.btn.on { border-color: var(--seal); box-shadow: inset 0 0 0 1px var(--seal); }
+
+/* Table */
+.table { display: grid; grid-template-columns: minmax(150px, 1fr) minmax(280px, 600px) minmax(150px, 1fr); gap: 16px; align-items: center; }
+.lesson-on .table { grid-template-columns: minmax(280px, 600px); justify-content: center; }
+.board-wrap { width: 100%; max-width: 600px; margin: 0 auto; aspect-ratio: 1; }
+svg.board { display: block; width: 100%; height: auto; border-radius: 8px; box-shadow: var(--shadow); touch-action: manipulation; }
+.pt { cursor: pointer; }
+.player {
+  background: var(--card); border: 1.5px solid var(--line); border-radius: 16px; padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 8px; position: relative; transition: border-color .2s, box-shadow .2s; min-width: 0;
+}
+.player.active { border-color: var(--seal); box-shadow: 0 0 0 3px color-mix(in srgb, var(--seal) 22%, transparent); }
+.player .who { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.stone-ic { width: 28px; height: 28px; border-radius: 50%; flex: none; }
+.stone-ic.b { background: radial-gradient(circle at 35% 30%, var(--stone-b-hi), var(--stone-b) 60%); }
+.stone-ic.w { background: radial-gradient(circle at 35% 30%, #fff, var(--stone-w) 50%, var(--stone-w-lo)); border: 1px solid var(--stone-w-lo); }
+.player .name { font-size: 24px; font-weight: 700; line-height: 1.1; overflow-wrap: anywhere; }
+.big .player .name { font-size: 30px; }
+.player .sub { font-size: 13px; color: var(--muted); }
+.player .caps { font-size: 15px; color: var(--muted); }
+.player .caps b { color: var(--ink); font-size: 22px; font-variant-numeric: tabular-nums; }
+.player .turn { font-size: 15px; color: var(--seal); font-weight: 500; min-height: 1.4em; }
+.player .turn:empty::before { content: '\00a0'; }
+.lesson-on .player, .lesson-on .actions, .replay-on .player, .replay-on .actions { display: none; }
+.replay-on .table { grid-template-columns: minmax(280px, 600px); justify-content: center; }
+
+/* Lesson + replay panels */
+.lesson-panel, .replay-panel { display: none; background: var(--card); border: 1.5px solid var(--line); border-radius: 16px; padding: 14px 16px; flex-direction: column; gap: 10px; }
+.lesson-on .lesson-panel, .replay-on .replay-panel { display: flex; }
+.replay-panel .head, .replay-panel .num, .replay-panel h2, .replay-panel h2 small { font: inherit; }
+.replay-panel h2 { margin: 0; font-size: 24px; font-weight: 700; }
+.replay-panel h2 small { font-size: 14px; color: var(--muted); font-weight: 400; margin-left: 8px; }
+.replay-panel .num { font-size: 15px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.replay-panel .head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.stamp { width: 160px; height: 160px; margin: 0 auto; display: block; }
+.lesson-panel .head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.lesson-panel .num { font-size: 13px; color: var(--muted); letter-spacing: .08em; }
+.lesson-panel h2 { margin: 0; font-size: 24px; font-weight: 700; }
+.lesson-panel h2 small { font-size: 14px; color: var(--muted); font-weight: 400; margin-left: 8px; }
+.lesson-panel .intro { font-size: 17px; }
+.lesson-panel .intro .en { display: block; font-size: 14px; color: var(--muted); margin-top: 2px; }
+.lesson-panel .row { justify-content: space-between; }
+.dots { display: flex; gap: 6px; flex-wrap: wrap; }
+.dot { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--line); background: transparent; padding: 0; cursor: pointer; }
+.dot.done { background: var(--good); border-color: var(--good); }
+.dot.cur { box-shadow: 0 0 0 3px color-mix(in srgb, var(--seal) 35%, transparent); border-color: var(--seal); }
+
+/* Status + actions */
+.status { text-align: center; font-size: 17px; min-height: 1.6em; color: var(--muted); }
+.big .status { font-size: 20px; }
+.status.alert { color: var(--seal); }
+.status.good { color: var(--good); }
+.actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+
+/* Sheets */
+.sheet-bg { position: fixed; inset: 0; background: rgba(20, 26, 23, .45); display: grid; place-items: center; padding: 16px; z-index: 20; }
+.sheet {
+  background: var(--card); color: var(--ink); border-radius: 20px; padding: 22px; width: min(100%, 560px);
+  max-height: 92vh; overflow: auto; box-shadow: var(--shadow); border: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: 16px;
+}
+.sheet h2 { margin: 0; font-size: 24px; font-weight: 700; text-wrap: balance; }
+.sheet h2 small { display: block; font-size: 13px; color: var(--muted); font-weight: 400; letter-spacing: .06em; margin-top: 2px; }
+.sheet h3 { margin: 0; font-size: 15px; color: var(--muted); font-weight: 500; letter-spacing: .04em; }
+.choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.choice { border: 1.5px solid var(--line); border-radius: 14px; padding: 12px 14px; cursor: pointer; background: transparent; text-align: left; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.choice.on { border-color: var(--seal); box-shadow: inset 0 0 0 1px var(--seal); }
+.choice .zh { font-size: 19px; font-weight: 700; }
+.choice .en { font-size: 12.5px; color: var(--muted); }
+.choice .hint { font-size: 13px; color: var(--muted); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.chip { border: 1.5px solid var(--line); background: transparent; border-radius: 999px; padding: 6px 12px; cursor: pointer; font-size: 15px; min-height: 40px; }
+.chip.on { border-color: var(--seal); background: color-mix(in srgb, var(--seal) 12%, transparent); }
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.field label { font-size: 14px; color: var(--muted); }
+.field input { font: inherit; font-size: 18px; padding: 10px 12px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--paper); color: var(--ink); width: 100%; min-width: 0; }
+.names { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.sheet .foot { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+
+/* Tutorial */
+.lesson { display: grid; grid-template-columns: 150px 1fr; gap: 14px; align-items: center; }
+.lesson svg { width: 150px; height: 150px; display: block; border-radius: 6px; }
+.lesson .t { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.lesson .t .zh { font-size: 18px; font-weight: 500; }
+.lesson .t .en { font-size: 14px; color: var(--muted); }
+
+/* End card */
+.result { text-align: center; display: flex; flex-direction: column; gap: 6px; }
+.result .big-t { font-family: var(--font-display); font-size: clamp(30px, 9vw, 44px); line-height: 1.15; color: var(--seal); text-wrap: balance; }
+.result .who { font-size: 24px; font-weight: 700; }
+.result .why { color: var(--muted); font-size: 15px; }
+.result .nth { font-size: 14px; color: var(--muted); letter-spacing: .06em; }
+
+/* Footer */
+.foot-note { border-top: 1px solid var(--line); padding-top: 16px; display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: center; color: var(--muted); font-size: 14.5px; }
+.foot-note p { margin: 0 0 6px; }
+.foot-note .big-p { color: var(--ink); font-size: 17px; font-weight: 500; }
+.qr { width: 132px; height: 132px; border-radius: 10px; background: #fff; padding: 4px; display: block; }
+.qr-box { text-align: center; font-size: 12.5px; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 4px; }
+
+@media (max-width: 760px) {
+  body { font-size: 17px; }
+  .table { grid-template-columns: 1fr; gap: 12px; }
+  .lesson-on .table { grid-template-columns: 1fr; }
+  .player { padding: 10px 12px; gap: 4px; }
+  .player .name { font-size: 20px; }
+  .board-wrap { max-width: min(100%, 72vh); }
+  .brand h1 { font-size: 30px; }
+  .tagline { display: none; }
+  .foot-note { grid-template-columns: 1fr; }
+  .lesson { grid-template-columns: 120px 1fr; }
+  .lesson svg { width: 120px; height: 120px; }
+  .choices, .names { grid-template-columns: 1fr; }
+  /* face-to-face: the top card is turned toward the person sitting across the table */
+  body.facing #pB { transform: rotate(180deg); }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <div class="seal" aria-hidden="true">手</div>
+      <div>
+        <h1>手谈<small>GoBetween · 九路围棋</small></h1>
+      </div>
+      <p class="tagline"><b>不用说话，也能聊天。</b><br>Talk with your hands, across generations.</p>
+    </div>
+    <div class="top-actions">
+      <span class="counter" id="counter"></span>
+      <button class="btn" id="btnLearn"><span class="zh">一分钟学会</span><span class="en">Learn in 1 min</span></button>
+      <button class="btn" id="btnLessons"><span class="zh">招式小课</span><span class="en">Technique lessons</span></button>
+      <button class="btn" id="btnSetup"><span class="zh">设置</span><span class="en">Setup</span></button>
+    </div>
+  </header>
+
+  <section class="lesson-panel" id="lessonPanel" aria-live="polite">
+    <div class="head">
+      <div><div class="num" id="lessonNum"></div><h2 id="lessonTitle"></h2></div>
+      <div class="dots" id="lessonDots"></div>
+    </div>
+    <div class="intro" id="lessonIntro"></div>
+    <div class="row">
+      <div class="row">
+        <button class="btn" id="lessonHint"><span class="zh">提示</span><span class="en">Hint</span></button>
+        <button class="btn" id="lessonRetry"><span class="zh">重来</span><span class="en">Retry</span></button>
+      </div>
+      <div class="row">
+        <button class="btn" id="lessonExit"><span class="zh">回去下棋</span><span class="en">Back to the game</span></button>
+        <button class="btn primary" id="lessonNext"><span class="zh">下一课</span><span class="en">Next lesson</span></button>
+      </div>
+    </div>
+  </section>
+
+  <section class="replay-panel" id="replayPanel" aria-live="polite">
+    <div class="head">
+      <h2>复盘<small>Replay</small></h2>
+      <div class="num" id="replayNum"></div>
+    </div>
+    <div class="row" style="justify-content: space-between">
+      <div class="row">
+        <button class="btn" id="rpFirst"><span class="zh">开头</span><span class="en">First</span></button>
+        <button class="btn" id="rpBack"><span class="zh">◀ 上一手</span><span class="en">Back</span></button>
+        <button class="btn" id="rpFwd"><span class="zh">下一手 ▶</span><span class="en">Forward</span></button>
+        <button class="btn" id="rpLast"><span class="zh">最后</span><span class="en">Last</span></button>
+      </div>
+      <button class="btn primary" id="rpExit"><span class="zh">回到棋局</span><span class="en">Back to the game</span></button>
+    </div>
+  </section>
+
+  <main class="table">
+    <section class="player" id="pB" aria-live="polite">
+      <div class="who"><span class="stone-ic b"></span><div style="min-width:0"><div class="name" id="nameB">宝宝</div><div class="sub" id="subB">Black · 黑棋 · 先走</div></div></div>
+      <div class="caps">提子 Captured <b id="capB">0</b></div>
+      <div class="turn" id="turnB"></div>
+    </section>
+
+    <div class="board-wrap">
+      <svg class="board" id="board" viewBox="0 0 560 560" xmlns="http://www.w3.org/2000/svg" role="application" aria-label="九路棋盘 9 by 9 Go board"></svg>
+    </div>
+
+    <section class="player" id="pW" aria-live="polite">
+      <div class="who"><span class="stone-ic w"></span><div style="min-width:0"><div class="name" id="nameW">奶奶</div><div class="sub" id="subW">White · 白棋</div></div></div>
+      <div class="caps">提子 Captured <b id="capW">0</b></div>
+      <div class="turn" id="turnW"></div>
+    </section>
+  </main>
+
+  <div class="status" id="status" aria-live="polite"></div>
+
+  <div class="actions">
+    <button class="btn" id="btnUndo"><span class="zh">悔棋</span><span class="en">Undo</span></button>
+    <button class="btn" id="btnPass"><span class="zh">虚手</span><span class="en">Pass</span></button>
+    <button class="btn" id="btnCount" hidden><span class="zh">数一数</span><span class="en">Count</span></button>
+    <button class="btn" id="btnReplay"><span class="zh">复盘</span><span class="en">Replay</span></button>
+    <button class="btn" id="btnHint"><span class="zh">提示</span><span class="en">Hints</span></button>
+    <button class="btn" id="btnSound"><span class="zh">声音</span><span class="en">Sound</span></button>
+    <button class="btn primary" id="btnNew"><span class="zh">新开一局</span><span class="en">New game</span></button>
+  </div>
+
+  <footer class="foot-note">
+    <div>
+      <p class="big-p">这是一个湾区高中生的社区围棋项目，免费教学。</p>
+      <p>A free community Go program run by Gary, a 3-dan player and high-school student in Alameda. Grandparents and grandchildren welcome; no experience needed.</p>
+      <p>想参加周末免费教学、或者有任何问题，加微信告诉我们。<br>To join a free weekend session, add us on WeChat.</p>
+      <div class="row" style="margin-top:8px">
+        <button class="btn" id="btnShare"><span class="zh">复制这个网页的链接</span><span class="en">Copy link</span></button>
+        <button class="btn" id="btnInvite"><span class="zh">复制一段邀请话，发给家人</span><span class="en">Copy an invitation</span></button>
+      </div>
+    </div>
+    <div class="qr-box"><img class="qr" alt="微信二维码 WeChat QR code" src="data:image/png;base64,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"><span>微信扫一扫 · Scan with WeChat</span></div>
+  </footer>
+</div>
+
+<!-- Setup sheet -->
+<div class="sheet-bg" id="setup" hidden>
+  <div class="sheet" role="dialog" aria-labelledby="setupTitle">
+    <h2 id="setupTitle">怎么玩？<small>HOW DO YOU WANT TO PLAY</small></h2>
+    <div class="choices" id="modeChoices">
+      <button class="choice" data-mode="capture"><span class="zh">吃子棋</span><span class="en">Capture Go</span><span class="hint">先吃到对方的子就赢。3–6 岁也能玩。<br>First to capture wins. Great for ages 3–6.</span></button>
+      <button class="choice" data-mode="go"><span class="zh">九路围棋</span><span class="en">9×9 Go</span><span class="hint">围地多的一方赢，一局 10 分钟。<br>Most area wins. About 10 minutes a game.</span></button>
+    </div>
+    <div id="captureOpts">
+      <h3>吃几颗子算赢？ · Stones to win</h3>
+      <div class="row" id="targetRow">
+        <button class="chip" data-target="1">1 颗 · one</button>
+        <button class="chip" data-target="3">3 颗 · three</button>
+        <button class="chip" data-target="5">5 颗 · five</button>
+      </div>
+    </div>
+    <div id="goOpts" hidden>
+      <h3>让子 · Handicap for Black</h3>
+      <div class="row" id="handicapRow">
+        <button class="chip" data-h="0">不让 · none</button>
+        <button class="chip" data-h="2">让 2 子</button>
+        <button class="chip" data-h="3">让 3 子</button>
+        <button class="chip" data-h="4">让 4 子</button>
+        <button class="chip" data-h="5">让 5 子</button>
+      </div>
+      <h3 style="margin-top:10px">贴目 · Komi for White</h3>
+      <div class="row" id="komiRow">
+        <button class="chip" data-komi="0">0</button>
+        <button class="chip" data-komi="3.5">3.5</button>
+        <button class="chip" data-komi="7">7</button>
+      </div>
+    </div>
+    <div class="names">
+      <div class="field">
+        <label for="inB">执黑 · Black（先走 · goes first）</label>
+        <input id="inB" maxlength="12" value="宝宝">
+        <div class="row" data-for="inB">
+          <button class="chip" type="button">宝宝</button><button class="chip" type="button">孙子</button><button class="chip" type="button">孙女</button><button class="chip" type="button">爸爸</button><button class="chip" type="button">妈妈</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="inW">执白 · White</label>
+        <input id="inW" maxlength="12" value="奶奶">
+        <div class="row" data-for="inW">
+          <button class="chip" type="button">奶奶</button><button class="chip" type="button">爷爷</button><button class="chip" type="button">外婆</button><button class="chip" type="button">外公</button>
+        </div>
+      </div>
+    </div>
+    <h3>白棋是谁 · Who plays White</h3>
+    <div class="row" id="botRow">
+      <button class="chip" data-bot="0">两个人一起下 · Two people</button>
+      <button class="chip" data-bot="1">电脑陪练（一个人也能玩）· Computer practice</button>
+    </div>
+    <h3>桌上怎么摆 · At the table</h3>
+    <div class="row">
+      <button class="chip" id="chipFacing">对坐：上面的牌子转过去给对面看 · Face-to-face</button>
+      <button class="chip" id="chipBig">大字 · Bigger text</button>
+      <button class="chip" id="chipConfirm">落子确认：点两下才落子 · Tap twice to place</button>
+    </div>
+    <div class="foot">
+      <button class="btn" id="setupCancel"><span class="zh">取消</span><span class="en">Cancel</span></button>
+      <button class="btn primary" id="setupStart"><span class="zh">开始</span><span class="en">Start</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- Tutorial sheet -->
+<div class="sheet-bg" id="learn" hidden>
+  <div class="sheet" role="dialog" aria-labelledby="learnTitle">
+    <h2 id="learnTitle">一分钟学会吃子棋<small>CAPTURE GO IN ONE MINUTE</small></h2>
+    <div class="lesson">
+      <svg viewBox="0 0 150 150" id="l1"></svg>
+      <div class="t"><span class="zh">① 黑白轮流，把子放在线的交叉点上。黑先。</span><span class="en">Take turns. Stones go on the crossings, not the squares. Black goes first.</span></div>
+    </div>
+    <div class="lesson">
+      <svg viewBox="0 0 150 150" id="l2"></svg>
+      <div class="t"><span class="zh">② 一颗子旁边的空点叫“气”。中间的子有 4 口气。</span><span class="en">The empty crossings next to a stone are its “breaths” (liberties). A stone in the middle has four.</span></div>
+    </div>
+    <div class="lesson">
+      <svg viewBox="0 0 150 150" id="l3"></svg>
+      <div class="t"><span class="zh">③ 气全被堵住，子就被“提”走了。连在一起的子共用气。</span><span class="en">Fill all its breaths and the stone is captured. Connected stones share their breaths.</span></div>
+    </div>
+    <div class="lesson">
+      <svg viewBox="0 0 150 150" id="l4"></svg>
+      <div class="t"><span class="zh">④ 吃子棋：先吃到对方的子就赢。围棋：两人都虚手后，谁围的地方大谁赢。</span><span class="en">Capture Go: first capture wins. Full Go: when both pass, the larger area wins.</span></div>
+    </div>
+    <div class="foot">
+      <button class="btn" id="learnLessons"><span class="zh">学几招</span><span class="en">Technique lessons</span></button>
+      <button class="btn primary" id="learnClose"><span class="zh">明白了，开始玩</span><span class="en">Got it, let's play</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- End-of-game card -->
+<div class="sheet-bg" id="end" hidden>
+  <div class="sheet" role="dialog" aria-labelledby="endTitle">
+    <div class="result">
+      <div class="nth" id="endNth"></div>
+      <div class="big-t" id="endTitle">赢了</div>
+      <div class="who" id="endWho"></div>
+      <div class="why" id="endWhy"></div>
+    </div>
+    <div class="foot" style="justify-content:center">
+      <button class="btn" id="endReview"><span class="zh">看看棋盘</span><span class="en">Look at the board</span></button>
+      <button class="btn" id="endReplay"><span class="zh">复盘</span><span class="en">Replay</span></button>
+      <button class="btn" id="endChange"><span class="zh">换个玩法</span><span class="en">Change mode</span></button>
+      <button class="btn primary" id="endAgain"><span class="zh">再来一局</span><span class="en">Play again</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- Badge: all lessons done -->
+<div class="sheet-bg" id="badge" hidden>
+  <div class="sheet" role="dialog" aria-labelledby="badgeTitle">
+    <div class="result">
+      <svg class="stamp" viewBox="0 0 160 160" role="img" aria-label="小棋手印章 Little Go player seal">
+        <rect x="6" y="6" width="148" height="148" rx="14" fill="var(--seal)"></rect>
+        <rect x="14" y="14" width="132" height="132" rx="9" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="2.5"></rect>
+        <text x="80" y="78" text-anchor="middle" font-family="var(--font-display)" font-size="52" fill="#fff">手谈</text>
+        <text x="80" y="118" text-anchor="middle" font-family="var(--font-body)" font-size="19" font-weight="700" fill="#fff" letter-spacing="2">小棋手</text>
+        <text x="80" y="138" text-anchor="middle" font-family="var(--font-body)" font-size="10.5" fill="rgba(255,255,255,.9)" letter-spacing="1.5">LITTLE GO PLAYER</text>
+      </svg>
+      <div class="big-t" id="badgeTitle">十二招都学会了！</div>
+      <div class="who">All twelve techniques learned</div>
+      <div class="why" id="badgeWhy"></div>
+    </div>
+    <div class="foot" style="justify-content:center">
+      <button class="btn primary" id="badgeClose"><span class="zh">去下一盘</span><span class="en">Go play a game</span></button>
+    </div>
+  </div>
+</div>
+
+<script>
+// 手谈 GoBetween — 9x9 Go rules engine (pure, no DOM)
+// Colors: 0 empty, 1 black, 2 white.
+(function (root) {
+  function createEngine(opts) {
+    var N = (opts && opts.size) || 9;
+    var mode = (opts && opts.mode) || 'go'; // 'go' | 'capture'
+    var target = (opts && opts.target) || 1; // capture mode: stones to win
+    var komi = (opts && typeof opts.komi === 'number') ? opts.komi : (mode === 'go' ? 7 : 0);
+    var handicap = (opts && opts.handicap) || 0;
+
+    var HANDICAP_POINTS = {
+      9: [[2, 6], [6, 2], [6, 6], [2, 2], [4, 4]] // [row, col], order of placement
+    };
+
+    var state = {
+      size: N, mode: mode, target: target, komi: komi, handicap: handicap,
+      board: new Array(N * N).fill(0),
+      turn: 1,
+      captures: { 1: 0, 2: 0 },
+      passes: 0,
+      moves: [],          // {type:'play'|'pass', color, i, captured:[idx...]}
+      ended: false,
+      result: null,       // {winner:0|1|2, reason, score?}
+      lastMove: -1
+    };
+    var history = [];     // snapshots for undo
+    var seen = {};        // positional superko
+
+    function key(board) { return board.join(''); }
+    function snapshot() {
+      return JSON.stringify({
+        board: state.board, turn: state.turn, captures: state.captures, passes: state.passes,
+        moves: state.moves, ended: state.ended, result: state.result, lastMove: state.lastMove
+      });
+    }
+    function restore(s) {
+      var o = JSON.parse(s);
+      state.board = o.board; state.turn = o.turn; state.captures = o.captures; state.passes = o.passes;
+      state.moves = o.moves; state.ended = o.ended; state.result = o.result; state.lastMove = o.lastMove;
+    }
+
+    function neighbors(i) {
+      var r = (i / N) | 0, c = i % N, out = [];
+      if (r > 0) out.push(i - N);
+      if (r < N - 1) out.push(i + N);
+      if (c > 0) out.push(i - 1);
+      if (c < N - 1) out.push(i + 1);
+      return out;
+    }
+
+    function group(board, i) {
+      var color = board[i], stones = [], libs = {}, stack = [i], mark = {};
+      mark[i] = true;
+      while (stack.length) {
+        var p = stack.pop();
+        stones.push(p);
+        var nb = neighbors(p);
+        for (var k = 0; k < nb.length; k++) {
+          var q = nb[k];
+          if (board[q] === 0) libs[q] = true;
+          else if (board[q] === color && !mark[q]) { mark[q] = true; stack.push(q); }
+        }
+      }
+      return { stones: stones, liberties: Object.keys(libs).length };
+    }
+
+    // Place handicap stones (black), white to move.
+    if (handicap > 1 && HANDICAP_POINTS[N]) {
+      var pts = HANDICAP_POINTS[N].slice(0, handicap);
+      for (var h = 0; h < pts.length; h++) state.board[pts[h][0] * N + pts[h][1]] = 1;
+      state.turn = 2;
+    }
+    seen[key(state.board)] = true;
+
+    function legal(i, color) {
+      color = color || state.turn;
+      if (state.ended) return { ok: false, reason: 'ended' };
+      if (i < 0 || i >= N * N) return { ok: false, reason: 'offboard' };
+      if (state.board[i] !== 0) return { ok: false, reason: 'occupied' };
+      var b = state.board.slice();
+      b[i] = color;
+      var other = 3 - color, captured = [];
+      var nb = neighbors(i);
+      for (var k = 0; k < nb.length; k++) {
+        var q = nb[k];
+        if (b[q] === other) {
+          var g = group(b, q);
+          if (g.liberties === 0) {
+            for (var s = 0; s < g.stones.length; s++) { b[g.stones[s]] = 0; captured.push(g.stones[s]); }
+          }
+        }
+      }
+      if (group(b, i).liberties === 0) return { ok: false, reason: 'suicide' };
+      if (seen[key(b)]) return { ok: false, reason: 'ko' };
+      return { ok: true, board: b, captured: captured };
+    }
+
+    function play(i) {
+      var t = legal(i);
+      if (!t.ok) return t;
+      history.push(snapshot());
+      var color = state.turn;
+      state.board = t.board;
+      state.captures[color] += t.captured.length;
+      state.moves.push({ type: 'play', color: color, i: i, captured: t.captured });
+      state.lastMove = i;
+      state.passes = 0;
+      seen[key(state.board)] = true;
+      state.turn = 3 - color;
+      if (mode === 'capture' && state.captures[color] >= target) {
+        state.ended = true;
+        state.result = { winner: color, reason: 'capture' };
+      }
+      return { ok: true, captured: t.captured, ended: state.ended, result: state.result };
+    }
+
+    function pass() {
+      if (state.ended) return { ok: false, reason: 'ended' };
+      history.push(snapshot());
+      var color = state.turn;
+      state.moves.push({ type: 'pass', color: color });
+      state.passes += 1;
+      state.lastMove = -1;
+      state.turn = 3 - color;
+      if (state.passes >= 2) finish();
+      return { ok: true, ended: state.ended, result: state.result };
+    }
+
+    function finish() {
+      state.ended = true;
+      if (mode === 'capture') {
+        var b = state.captures[1], w = state.captures[2];
+        state.result = { winner: b === w ? 0 : (b > w ? 1 : 2), reason: 'passes', captures: { 1: b, 2: w } };
+      } else {
+        var sc = score();
+        state.result = { winner: sc.winner, reason: 'score', score: sc };
+      }
+    }
+
+    function resign(color) {
+      if (state.ended) return { ok: false, reason: 'ended' };
+      history.push(snapshot());
+      state.ended = true;
+      state.result = { winner: 3 - color, reason: 'resign' };
+      return { ok: true };
+    }
+
+    // Area scoring (Chinese rules): stones + surrounded empty points.
+    function score() {
+      var b = state.board, owner = new Array(N * N).fill(0), seenE = {};
+      var stones = { 1: 0, 2: 0 }, terr = { 1: 0, 2: 0 };
+      for (var i = 0; i < N * N; i++) {
+        if (b[i] !== 0) { stones[b[i]]++; owner[i] = b[i]; continue; }
+        if (seenE[i]) continue;
+        var region = [], stack = [i], borders = {}, mark = {};
+        mark[i] = true; seenE[i] = true;
+        while (stack.length) {
+          var p = stack.pop(); region.push(p);
+          var nb = neighbors(p);
+          for (var k = 0; k < nb.length; k++) {
+            var q = nb[k];
+            if (b[q] === 0) { if (!mark[q]) { mark[q] = true; seenE[q] = true; stack.push(q); } }
+            else borders[b[q]] = true;
+          }
+        }
+        var who = (borders[1] && !borders[2]) ? 1 : ((borders[2] && !borders[1]) ? 2 : 0);
+        if (who) { terr[who] += region.length; for (var r = 0; r < region.length; r++) owner[region[r]] = who; }
+      }
+      var black = stones[1] + terr[1], white = stones[2] + terr[2] + komi;
+      return {
+        black: black, white: white, komi: komi, stones: stones, territory: terr, owner: owner,
+        winner: black === white ? 0 : (black > white ? 1 : 2), margin: Math.abs(black - white)
+      };
+    }
+
+    function undo() {
+      if (!history.length) return { ok: false, reason: 'empty' };
+      var cur = key(state.board);
+      restore(history.pop());
+      // Rebuild superko set from scratch (cheap on 9x9).
+      seen = {};
+      var replay = history.slice();
+      // Simpler: recompute by walking snapshots we still have plus current.
+      for (var h = 0; h < replay.length; h++) seen[key(JSON.parse(replay[h]).board)] = true;
+      seen[key(state.board)] = true;
+      return { ok: true };
+    }
+
+    // Groups with exactly one liberty (for the "atari" hint).
+    function atariStones() {
+      var b = state.board, out = [], done = {};
+      for (var i = 0; i < N * N; i++) {
+        if (b[i] === 0 || done[i]) continue;
+        var g = group(b, i);
+        for (var s = 0; s < g.stones.length; s++) done[g.stones[s]] = true;
+        if (g.liberties === 1) out = out.concat(g.stones);
+      }
+      return out;
+    }
+
+    function libertiesAt(i) { return state.board[i] ? group(state.board, i).liberties : 0; }
+
+    return {
+      get state() { return state; },
+      play: play, pass: pass, undo: undo, resign: resign, legal: legal, score: score,
+      atariStones: atariStones, libertiesAt: libertiesAt,
+      canUndo: function () { return history.length > 0; },
+      moveCount: function () { return state.moves.length; },
+      toJSON: function () { return { opts: { size: N, mode: mode, target: target, komi: komi, handicap: handicap }, snap: snapshot(), history: history }; },
+      _load: function (data) { history = data.history || []; restore(data.snap); seen = {}; for (var h = 0; h < history.length; h++) seen[key(JSON.parse(history[h]).board)] = true; seen[key(state.board)] = true; }
+    };
+  }
+  function loadEngine(data) { var e = createEngine(data.opts); e._load(data); return e; }
+  root.createEngine = createEngine;
+  root.loadEngine = loadEngine;
+  if (typeof module !== 'undefined' && module.exports) module.exports = { createEngine: createEngine, loadEngine: loadEngine };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+// 手谈 GoBetween — bilingual technique lessons (data + goal checks + white auto-reply)
+(function (root) {
+  var N = 9;
+  function at(r, c) { return r * N + c; }
+  function nb(i) { var r = (i / N) | 0, c = i % N, o = []; if (r > 0) o.push(i - N); if (r < N - 1) o.push(i + N); if (c > 0) o.push(i - 1); if (c < N - 1) o.push(i + 1); return o; }
+  function group(b, i) {
+    var color = b[i], stones = [i], seen = {}, libs = {}; seen[i] = true;
+    for (var k = 0; k < stones.length; k++) { var p = stones[k], q, nn = nb(p); for (var j = 0; j < nn.length; j++) { q = nn[j]; if (b[q] === 0) libs[q] = true; else if (b[q] === color && !seen[q]) { seen[q] = true; stones.push(q); } } }
+    return { stones: stones, libs: Object.keys(libs).map(Number) };
+  }
+
+  // Each lesson: stones [r,c,color], black to play. goal types:
+  //  atari{target}  capture  double  connect{a,b}  escape{a,min}  chase{target,maxMoves}  snapback{min,maxMoves}
+  var LESSONS = [
+    { id: 'atari', zh: '叫吃', en: 'Atari', intro: '让白子只剩一口气，就叫“叫吃”。把中间的白子叫吃。', introEn: 'Leave the white stone with just one breath. That is called atari. Put the white stone in atari.',
+      stones: [[4, 4, 2], [3, 4, 1], [4, 3, 1]], goal: { type: 'atari', target: [4, 4] }, hints: [[5, 4], [4, 5]],
+      lesson: '叫吃之后，对方不跑，下一手就能吃掉。', lessonEn: 'After atari, if they do not run, you capture next move.' },
+    { id: 'capture', zh: '提子', en: 'Capture', intro: '白子只剩最后一口气了。堵上它，把它提走。', introEn: 'The white stone has one breath left. Fill it and take the stone off the board.',
+      stones: [[4, 4, 2], [3, 4, 1], [4, 3, 1], [5, 4, 1]], goal: { type: 'capture' }, hints: [[4, 5]],
+      lesson: '气被堵完的子要立刻拿走，这就是“提子”。', lessonEn: 'A stone with no breaths is removed at once. That is a capture.' },
+    { id: 'edge', zh: '边上的子气少', en: 'Fewer breaths at the edge', intro: '边上的子只有 3 口气，角上只有 2 口气。吃掉边上这颗白子。', introEn: 'A stone on the edge has only 3 breaths; in the corner only 2. Capture the white stone on the edge.',
+      stones: [[0, 4, 2], [0, 3, 1], [1, 4, 1]], goal: { type: 'capture' }, hints: [[0, 5]],
+      lesson: '所以靠边的子更容易被吃，也更难逃。', lessonEn: 'Stones near the edge are easier to catch and harder to save.' },
+    { id: 'escape', zh: '逃跑：长气', en: 'Escape by extending', intro: '你的黑子被叫吃了！往外长一步，气就多了。', introEn: 'Your black stone is in atari! Extend outward and it gains breaths.',
+      stones: [[4, 4, 1], [3, 4, 2], [4, 3, 2], [4, 5, 2]], goal: { type: 'escape', a: [4, 4], min: 3 }, hints: [[5, 4]],
+      lesson: '连在一起的子共用气。逃跑就是往气多的地方长。', lessonEn: 'Connected stones share breaths. To escape, extend toward open space.' },
+    { id: 'connect', zh: '连接', en: 'Connect', intro: '两颗黑子中间有个缺口，白棋想从这里切断。把它们连起来。', introEn: 'There is a gap between your two black stones and White wants to cut. Connect them.',
+      stones: [[4, 3, 1], [4, 5, 1], [3, 4, 2], [5, 4, 2], [4, 2, 2], [4, 6, 2]], goal: { type: 'connect', a: [4, 3], b: [4, 5] }, hints: [[4, 4]],
+      lesson: '连起来的棋更结实。看到缺口，先想想要不要连。', lessonEn: 'Connected stones are stronger. When you see a gap, think about connecting.' },
+    { id: 'double', zh: '双叫吃', en: 'Double atari', intro: '一手棋同时叫吃两颗白子，对方只能救一颗。找到那一点。', introEn: 'One move puts two white stones in atari at once; White can only save one. Find that point.',
+      stones: [[3, 4, 2], [2, 4, 1], [3, 3, 1], [5, 4, 2], [6, 4, 1], [5, 3, 1]], goal: { type: 'double' }, hints: [[4, 4]],
+      lesson: '一手棋做两件事，这就是“双叫吃”。', lessonEn: 'One move, two threats. That is a double atari.' },
+    { id: 'ladder', zh: '征子', en: 'Ladder', intro: '叫吃它，白棋会往外跑。每次都从正确的一边继续叫吃，白棋会被一路追到边上。', introEn: 'Atari the white stone; it will run. Keep the atari coming from the right side and it will be chased to the edge.',
+      stones: [[4, 4, 2], [3, 4, 1], [3, 5, 1], [4, 3, 1]], goal: { type: 'chase', target: [4, 4], maxMoves: 9 }, hints: [[5, 4]],
+      lesson: '征子像楼梯一样一路追。前面没有白子接应时才能征。', lessonEn: 'A ladder chases the stone step by step. It only works if no white stone is waiting ahead.' },
+    { id: 'net', zh: '枷（门吃）', en: 'Net', intro: '不要直接叫吃。在斜角上罩一手，白子两边都跑不掉。', introEn: 'Do not atari directly. Cover the diagonal and the white stone cannot escape either way.',
+      stones: [[4, 4, 2], [3, 4, 1], [3, 5, 1], [4, 3, 1], [5, 3, 1]], goal: { type: 'chase', target: [4, 4], maxMoves: 4 }, hints: [[5, 5]],
+      lesson: '枷比征子更稳：不怕前面有接应。', lessonEn: 'A net is safer than a ladder: it does not care what is waiting ahead.' },
+    { id: 'snapback', zh: '倒扑', en: 'Snapback', intro: '先送一颗子让白棋吃。白棋吃完以后只剩一口气，你再把一大块都提掉。', introEn: 'Sacrifice one stone and let White capture it. Afterwards White has one breath left, and you take the whole group.',
+      stones: [[0, 0, 2], [1, 0, 2], [1, 1, 2], [1, 2, 2], [1, 3, 2], [0, 3, 2], [0, 4, 1], [1, 4, 1], [2, 0, 1], [2, 1, 1], [2, 2, 1], [2, 3, 1]],
+      goal: { type: 'snapback', min: 5, maxMoves: 2 }, hints: [[0, 1], [0, 2]],
+      lesson: '舍小取大。送一颗子，换一大块。', lessonEn: 'Give up a little to gain a lot: one stone for a whole group.' },
+    { id: 'ko', zh: '打劫', en: 'Ko', intro: '提掉中间这颗白子。提完之后，白棋不能马上提回来，要先在别处下一手。', introEn: 'Capture the white stone in the middle. Afterwards White may not retake at once; it must play elsewhere first.',
+      stones: [[4, 4, 2], [3, 4, 1], [4, 3, 1], [5, 4, 1], [3, 5, 2], [5, 5, 2], [4, 6, 2]], goal: { type: 'capture' }, hints: [[4, 5]],
+      lesson: '这个形状叫“劫”。规则：提劫以后，对方必须先下别处，才能提回。', lessonEn: 'This shape is a ko. Rule: after a ko capture, the other side must play elsewhere before retaking.' },
+    { id: 'oneeye', zh: '一只眼不够活', en: 'One eye is not enough', intro: '白棋围了一只眼，外面的气全没了。往眼里下一子，把它整块提掉。', introEn: 'White has made one eye and has no outside breaths left. Play inside the eye and capture the whole group.',
+      stones: [[3, 3, 2], [3, 4, 2], [3, 5, 2], [4, 3, 2], [4, 5, 2], [5, 3, 2], [5, 4, 2], [5, 5, 2],
+        [2, 3, 1], [2, 4, 1], [2, 5, 1], [3, 2, 1], [4, 2, 1], [5, 2, 1], [6, 3, 1], [6, 4, 1], [6, 5, 1], [3, 6, 1], [4, 6, 1], [5, 6, 1]],
+      goal: { type: 'capture' }, hints: [[4, 4]],
+      lesson: '平时没有气的地方不能下；但如果这一子能提掉对方，就可以。所以只有一只眼的棋是死的。', lessonEn: 'Normally you may not play where you have no breaths, unless the move captures. So a group with one eye is dead.' },
+    { id: 'twoeyes', zh: '两只眼才能活', en: 'Two eyes live', intro: '黑棋被团团围住，肚子里只剩三个空点。下在正中间，做出两只眼，白棋就永远吃不掉它。', introEn: 'Black is surrounded with three empty points inside. Play the middle one to make two eyes; then White can never capture.',
+      stones: [[3, 2, 1], [3, 3, 1], [3, 4, 1], [3, 5, 1], [3, 6, 1], [5, 2, 1], [5, 3, 1], [5, 4, 1], [5, 5, 1], [5, 6, 1], [4, 2, 1], [4, 6, 1],
+        [2, 2, 2], [2, 3, 2], [2, 4, 2], [2, 5, 2], [2, 6, 2], [6, 2, 2], [6, 3, 2], [6, 4, 2], [6, 5, 2], [6, 6, 2], [3, 1, 2], [4, 1, 2], [5, 1, 2], [3, 7, 2], [4, 7, 2], [5, 7, 2]],
+      goal: { type: 'eyes', a: [4, 2], min: 2 }, hints: [[4, 4]],
+      lesson: '两只分开的眼，对方一次只能填一只，而且填进去自己没气，所以永远吃不掉。', lessonEn: 'With two separate eyes the opponent can fill only one at a time, and that stone would have no breaths, so the group can never be captured.' }
+  ];
+
+  function setupEngine(createEngine, lesson) {
+    var e = createEngine({ size: N, mode: 'capture', target: 99, komi: 0 });
+    var board = new Array(N * N).fill(0);
+    lesson.stones.forEach(function (s) { board[at(s[0], s[1])] = s[2]; });
+    e._load({ snap: JSON.stringify({ board: board, turn: 1, captures: { 1: 0, 2: 0 }, passes: 0, moves: [], ended: false, result: null, lastMove: -1 }), history: [] });
+    return e;
+  }
+
+  // Evaluate a one-move goal right after black's move. Returns true/false.
+  function checkInstant(lesson, e, playResult) {
+    var g = lesson.goal, b = e.state.board;
+    if (g.type === 'capture') return playResult.captured.length > 0;
+    if (g.type === 'atari') { var t = at(g.target[0], g.target[1]); return b[t] === 2 && group(b, t).libs.length === 1; }
+    if (g.type === 'double') {
+      var count = 0, done = {};
+      for (var i = 0; i < N * N; i++) { if (b[i] !== 2 || done[i]) continue; var gr = group(b, i); gr.stones.forEach(function (s) { done[s] = true; }); if (gr.libs.length === 1) count++; }
+      return count >= 2;
+    }
+    if (g.type === 'connect') { var A = at(g.a[0], g.a[1]), B = at(g.b[0], g.b[1]); return b[A] === 1 && group(b, A).stones.indexOf(B) >= 0; }
+    if (g.type === 'escape') { var p = at(g.a[0], g.a[1]); return b[p] === 1 && group(b, p).libs.length >= g.min; }
+    if (g.type === 'eyes') {
+      // count liberties of the group that are real eyes: every neighbor is a stone of the same group (or off-board)
+      var q = at(g.a[0], g.a[1]); if (b[q] !== 1) return false;
+      var gr = group(b, q), inG = {}; gr.stones.forEach(function (s) { inG[s] = true; });
+      var eyes = 0;
+      gr.libs.forEach(function (l) { var ok = true; nb(l).forEach(function (x) { if (!inG[x]) ok = false; }); if (ok) eyes++; });
+      return eyes >= g.min;
+    }
+    return false;
+  }
+
+  // White's automatic reply for multi-move lessons. Returns the index played or -1 (pass).
+  function autoReply(e, lesson) {
+    var b = e.state.board, g = lesson.goal;
+    // 1. capture something if possible (prefer the biggest capture)
+    var best = -1, bestN = 0;
+    for (var i = 0; i < N * N; i++) {
+      if (b[i] !== 0) continue;
+      var t = e.legal(i, 2);
+      if (t.ok && t.captured.length > bestN) { bestN = t.captured.length; best = i; }
+    }
+    if (best >= 0) { e.play(best); return best; }
+    // 2. escape with the target group: extend to the liberty that leaves the most breaths
+    if (g.target) {
+      var ti = at(g.target[0], g.target[1]);
+      if (b[ti] === 2) {
+        var gr = group(b, ti), choice = -1, choiceLibs = -1;
+        gr.libs.forEach(function (l) {
+          var t2 = e.legal(l, 2); if (!t2.ok) return;
+          var libsAfter = group(t2.board, l).libs.length;
+          if (libsAfter > choiceLibs) { choiceLibs = libsAfter; choice = l; }
+        });
+        if (choice >= 0) { e.play(choice); return choice; }
+      }
+    }
+    e.pass(); return -1;
+  }
+
+  // After black's move + white's auto reply in a multi-move lesson: 'win' | 'fail' | 'continue'
+  function checkChase(lesson, e, blackMoves) {
+    var g = lesson.goal, b = e.state.board;
+    if (g.type === 'snapback') {
+      if (e.state.captures[1] >= g.min) return 'win';
+      return blackMoves >= g.maxMoves ? 'fail' : 'continue';
+    }
+    var t = at(g.target[0], g.target[1]);
+    if (b[t] !== 2) return 'win';
+    if (group(b, t).libs.length >= 3) return 'fail';
+    if (blackMoves >= g.maxMoves) return 'fail';
+    return 'continue';
+  }
+
+  var api = { LESSONS: LESSONS, setupEngine: setupEngine, checkInstant: checkInstant, autoReply: autoReply, checkChase: checkChase, isMulti: function (l) { return l.goal.type === 'chase' || l.goal.type === 'snapback'; } };
+  root.SHOUTAN_LESSONS = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+// 手谈 GoBetween — a small practice opponent for 9x9 (greedy, no search beyond one reply)
+(function (root) {
+  var N = 9;
+  function nb(i) { var r = (i / N) | 0, c = i % N, o = []; if (r > 0) o.push(i - N); if (r < N - 1) o.push(i + N); if (c > 0) o.push(i - 1); if (c < N - 1) o.push(i + 1); return o; }
+  function group(b, i) {
+    var color = b[i], stones = [i], seen = {}, libs = {}; seen[i] = true;
+    for (var k = 0; k < stones.length; k++) { var nn = nb(stones[k]); for (var j = 0; j < nn.length; j++) { var q = nn[j]; if (b[q] === 0) libs[q] = true; else if (b[q] === color && !seen[q]) { seen[q] = true; stones.push(q); } } }
+    return { stones: stones, libs: Object.keys(libs).map(Number) };
+  }
+  function isEye(b, i, color) { // every neighbor is own stone (or edge); crude but avoids filling eyes
+    var nn = nb(i); for (var k = 0; k < nn.length; k++) if (b[nn[k]] !== color) return false; return true;
+  }
+  function lineOf(i) { var r = (i / N) | 0, c = i % N; return Math.min(r, c, N - 1 - r, N - 1 - c); }
+
+  // Returns the chosen index, or -1 to pass.
+  function choose(engine, color, rng) {
+    rng = rng || Math.random;
+    var s = engine.state, b = s.board, other = 3 - color, mode = s.mode;
+    var best = [], bestScore = -Infinity;
+    var moves = s.moves.length;
+    for (var i = 0; i < N * N; i++) {
+      if (b[i] !== 0) continue;
+      if (isEye(b, i, color)) continue;
+      var t = engine.legal(i, color);
+      if (!t.ok) continue;
+      var nbd = t.board;
+      var g = group(nbd, i);
+      var score = 0;
+      // captures
+      if (t.captured.length) score += 60 + 25 * t.captured.length + (mode === 'capture' ? 200 : 0);
+      // self-atari is bad unless it captures
+      if (g.libs.length === 1 && !t.captured.length) score -= 80;
+      if (g.libs.length === 2 && !t.captured.length) score -= 8;
+      // save own groups that were in atari (before the move)
+      var nn = nb(i), savedStones = 0;
+      for (var k = 0; k < nn.length; k++) {
+        var q = nn[k];
+        if (b[q] === color) { var og = group(b, q); if (og.libs.length === 1 && g.libs.length >= 2) savedStones += og.stones.length; }
+      }
+      score += savedStones * 30;
+      // threats: put enemy groups in atari (only if we are safe) and count enemy liberties taken
+      var threatened = 0, pressure = 0;
+      for (var k2 = 0; k2 < nn.length; k2++) {
+        var q2 = nn[k2];
+        if (nbd[q2] === other) { var eg = group(nbd, q2); if (eg.libs.length === 1) threatened += eg.stones.length; if (eg.libs.length === 2) pressure += 1; }
+      }
+      if (g.libs.length >= 2) score += threatened * 18 + pressure * 4;
+      // shape: like having liberties and friends, dislike the first line early
+      score += Math.min(g.libs.length, 4) * 3;
+      var line = lineOf(i);
+      if (line === 0) score -= (moves < 40 ? 14 : 2);
+      if (line === 1) score -= (moves < 20 ? 5 : 0);
+      if (line >= 2) score += 3;
+      // in area-scoring Go, late in the game, filling a dame costs nothing but no own territory
+      if (mode === 'go') {
+        var ownNear = 0, enemyNear = 0;
+        for (var k3 = 0; k3 < nn.length; k3++) { if (b[nn[k3]] === color) ownNear++; if (b[nn[k3]] === other) enemyNear++; }
+        if (ownNear === nn.length - 1) score -= 10; // nearly our own eye
+        score += enemyNear * 2;
+      }
+      score += rng() * 6; // a little variety
+      if (score > bestScore + 1e-9) { bestScore = score; best = [i]; }
+    }
+    if (!best.length) return -1;
+    // in Go mode, once nothing good is left, pass (end the game) rather than fill points
+    if (mode === 'go' && bestScore < 0 && moves > 30) return -1;
+    return best[0];
+  }
+  var api = { choose: choose };
+  root.SHOUTAN_BOT = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+(function () {
+  'use strict';
+  var N = 9, CELL = 60, MARGIN = 40, R = 27;
+  var $ = function (id) { return document.getElementById(id); };
+  var SVG = 'http://www.w3.org/2000/svg';
+  var LESSONS = window.SHOUTAN_LESSONS;
+  function el(tag, attrs, parent) {
+    var e = document.createElementNS(SVG, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function idx(rc) { return rc[0] * N + rc[1]; }
+
+  // ---------- persistent, per-device conveniences ----------
+  var store = {
+    get: function (k, d) { try { var v = localStorage.getItem('shoutan.' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set: function (k, v) { try { localStorage.setItem('shoutan.' + k, JSON.stringify(v)); } catch (e) {} }
+  };
+
+  var DEFAULTS = { mode: 'capture', target: 1, handicap: 0, komi: 7, nameB: '宝宝', nameW: '奶奶', confirm: false, hints: true, sound: true, facing: false, big: false, bot: false };
+  var prefs = Object.assign({}, DEFAULTS, store.get('prefs', {}));
+  var stats = store.get('stats', { games: 0 });
+  var learned = store.get('lessons', {});
+  var game = null, pending = -1, gameCounted = false, countShown = false;
+  var lesson = null, savedGame = null, hintPoints = [], replay = null, botBusy = false;
+  var BOT = window.SHOUTAN_BOT;
+
+  // ---------- board drawing ----------
+  var board = $('board');
+  var layers = {};
+  function drawBoardBase() {
+    board.innerHTML = '';
+    var defs = el('defs', {}, board);
+    var gb = el('radialGradient', { id: 'gB', cx: '35%', cy: '30%', r: '70%' }, defs);
+    el('stop', { offset: '0', 'stop-color': 'var(--stone-b-hi)' }, gb);
+    el('stop', { offset: '1', 'stop-color': 'var(--stone-b)' }, gb);
+    var gw = el('radialGradient', { id: 'gW', cx: '35%', cy: '30%', r: '70%' }, defs);
+    el('stop', { offset: '0', 'stop-color': '#ffffff' }, gw);
+    el('stop', { offset: '.55', 'stop-color': 'var(--stone-w)' }, gw);
+    el('stop', { offset: '1', 'stop-color': 'var(--stone-w-lo)' }, gw);
+    var wood = el('linearGradient', { id: 'gK', x1: '0', y1: '0', x2: '1', y2: '1' }, defs);
+    el('stop', { offset: '0', 'stop-color': 'var(--kaya)' }, wood);
+    el('stop', { offset: '1', 'stop-color': 'var(--kaya-edge)' }, wood);
+    var sh = el('filter', { id: 'sh', x: '-30%', y: '-30%', width: '160%', height: '160%' }, defs);
+    el('feDropShadow', { dx: '0', dy: '2', stdDeviation: '2', 'flood-color': '#000', 'flood-opacity': '.35' }, sh);
+
+    el('rect', { x: 0, y: 0, width: 560, height: 560, fill: 'url(#gK)' }, board);
+    for (var g = 0; g < 14; g++) {
+      el('path', { d: 'M0 ' + (g * 42 + 10) + ' Q 280 ' + (g * 42 + 10 + (g % 2 ? 9 : -9)) + ' 560 ' + (g * 42 + 10), stroke: 'var(--kaya-edge)', 'stroke-width': 1, fill: 'none', opacity: .35 }, board);
+    }
+    layers.lines = el('g', { stroke: 'var(--kaya-line)', 'stroke-width': 1.6, 'stroke-linecap': 'round' }, board);
+    for (var i = 0; i < N; i++) {
+      var p = MARGIN + i * CELL;
+      el('line', { x1: MARGIN, y1: p, x2: MARGIN + 8 * CELL, y2: p }, layers.lines);
+      el('line', { x1: p, y1: MARGIN, x2: p, y2: MARGIN + 8 * CELL }, layers.lines);
+    }
+    [[2, 2], [2, 6], [6, 2], [6, 6], [4, 4]].forEach(function (s) {
+      el('circle', { cx: MARGIN + s[1] * CELL, cy: MARGIN + s[0] * CELL, r: 4, fill: 'var(--kaya-line)' }, board);
+    });
+    layers.owner = el('g', {}, board);
+    layers.stones = el('g', {}, board);
+    layers.marks = el('g', {}, board);
+    layers.hits = el('g', {}, board);
+    for (var r = 0; r < N; r++) for (var c = 0; c < N; c++) {
+      el('rect', { x: MARGIN + c * CELL - CELL / 2, y: MARGIN + r * CELL - CELL / 2, width: CELL, height: CELL, fill: 'transparent', 'class': 'pt', 'data-i': r * N + c, tabindex: 0, role: 'button', 'aria-label': String.fromCharCode(65 + c + (c >= 8 ? 1 : 0)) + (N - r) }, layers.hits);
+    }
+  }
+
+  function cxOf(i) { return MARGIN + (i % N) * CELL; }
+  function cyOf(i) { return MARGIN + ((i / N) | 0) * CELL; }
+
+  function render() {
+    var s = game.state, b = s.board;
+    layers.stones.innerHTML = ''; layers.marks.innerHTML = ''; layers.owner.innerHTML = '';
+    var atari = (prefs.hints && !s.ended) ? game.atariStones() : [];
+    var atariSet = {}; atari.forEach(function (i) { atariSet[i] = true; });
+    for (var i = 0; i < N * N; i++) {
+      if (!b[i]) continue;
+      el('circle', { cx: cxOf(i), cy: cyOf(i), r: R, fill: b[i] === 1 ? 'url(#gB)' : 'url(#gW)', filter: 'url(#sh)' }, layers.stones);
+      if (atariSet[i]) el('circle', { cx: cxOf(i), cy: cyOf(i), r: 7, fill: 'var(--seal)', stroke: '#fff', 'stroke-width': 1.5 }, layers.marks);
+    }
+    if (s.lastMove >= 0 && !atariSet[s.lastMove]) {
+      el('circle', { cx: cxOf(s.lastMove), cy: cyOf(s.lastMove), r: 8, fill: 'none', stroke: b[s.lastMove] === 1 ? '#fff' : '#222', 'stroke-width': 2.5 }, layers.marks);
+    }
+    if (pending >= 0 && !b[pending]) {
+      el('circle', { cx: cxOf(pending), cy: cyOf(pending), r: R, fill: s.turn === 1 ? 'url(#gB)' : 'url(#gW)', opacity: .5 }, layers.marks);
+    }
+    hintPoints.forEach(function (i) {
+      if (b[i]) return;
+      el('circle', { cx: cxOf(i), cy: cyOf(i), r: 16, fill: 'none', stroke: 'var(--seal)', 'stroke-width': 4, 'stroke-dasharray': '6 5' }, layers.marks);
+    });
+    var own = null;
+    if (s.ended && s.result && s.result.score) own = s.result.score.owner;
+    else if (countShown && s.mode === 'go') own = game.score().owner;
+    if (own) {
+      for (var k = 0; k < N * N; k++) {
+        if (b[k] || !own[k]) continue;
+        el('rect', { x: cxOf(k) - 9, y: cyOf(k) - 9, width: 18, height: 18, rx: 3, fill: own[k] === 1 ? 'var(--stone-b)' : 'var(--stone-w)', opacity: .75 }, layers.owner);
+      }
+    }
+    // cards
+    $('nameB').textContent = prefs.nameB || '黑';
+    $('nameW').textContent = prefs.nameW || '白';
+    $('capB').textContent = s.captures[1];
+    $('capW').textContent = s.captures[2];
+    var modeTxt = s.mode === 'capture' ? ('吃子棋 · 吃 ' + s.target + ' 颗子赢') : ('九路围棋' + (s.handicap > 1 ? ' · 让 ' + s.handicap + ' 子' : '') + ' · 贴 ' + s.komi + ' 目');
+    $('subB').textContent = 'Black · 黑棋 · ' + modeTxt;
+    $('subW').textContent = 'White · 白棋' + (prefs.bot ? ' · 电脑陪练 Computer' : '');
+    $('pB').classList.toggle('active', !s.ended && s.turn === 1);
+    $('pW').classList.toggle('active', !s.ended && s.turn === 2);
+    $('turnB').textContent = (!s.ended && s.turn === 1) ? '该你了 · Your turn' : '';
+    $('turnW').textContent = (!s.ended && s.turn === 2) ? '该你了 · Your turn' : '';
+    $('btnUndo').disabled = !game.canUndo();
+    $('btnPass').disabled = s.ended;
+    $('btnReplay').disabled = game.moveCount() === 0;
+    $('btnCount').hidden = s.mode !== 'go';
+    $('btnCount').classList.toggle('on', countShown);
+    $('btnHint').classList.toggle('on', !!prefs.hints);
+    $('btnSound').classList.toggle('on', !!prefs.sound);
+    var nLearned = Object.keys(learned).length;
+    $('counter').innerHTML = '一起下过 <strong>' + stats.games + '</strong> 局 · 学会 <strong>' + nLearned + '</strong> 招<br>' + stats.games + ' games · ' + nLearned + ' techniques';
+  }
+
+  function say(msg, cls) {
+    var st = $('status');
+    st.textContent = msg; st.className = 'status' + (cls ? ' ' + cls : '');
+  }
+
+  // ---------- sound ----------
+  var actx = null;
+  function click(kind) {
+    if (!prefs.sound) return;
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      if (actx.state === 'suspended') actx.resume();
+      var t = actx.currentTime;
+      var o = actx.createOscillator(), g = actx.createGain();
+      o.type = 'triangle';
+      o.frequency.setValueAtTime(kind === 'capture' ? 520 : (kind === 'win' ? 660 : 820), t);
+      o.frequency.exponentialRampToValueAtTime(kind === 'capture' ? 260 : (kind === 'win' ? 990 : 300), t + (kind === 'win' ? 0.18 : 0.08));
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.5, t + 0.004);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + (kind === 'stone' ? 0.09 : 0.28));
+      o.connect(g).connect(actx.destination);
+      o.start(t); o.stop(t + 0.3);
+    } catch (e) {}
+  }
+
+  // ---------- game flow ----------
+  function applyPrefs() {
+    document.body.classList.toggle('facing', !!prefs.facing);
+    document.body.classList.toggle('big', !!prefs.big);
+  }
+  function newGame(opts) {
+    game = createEngine(opts);
+    pending = -1; gameCounted = false; countShown = false; hintPoints = [];
+    render();
+    if (opts.mode === 'capture') say((prefs.nameB || '黑') + ' 先走。先吃到 ' + opts.target + ' 颗子的人赢。 · Black first; first to capture ' + opts.target + ' wins.');
+    else if (game.state.turn === 2) say('黑让 ' + opts.handicap + ' 子，' + (prefs.nameW || '白') + ' 先走。 · White plays first after handicap.');
+    else say((prefs.nameB || '黑') + ' 先走。 · Black plays first.');
+    hide('end'); hide('setup');
+    maybeBot();
+  }
+
+  // ---------- practice opponent ----------
+  function botOn() { return !!(prefs.bot && BOT && !lesson && !replay); }
+  function maybeBot(afterPass) {
+    if (!botOn() || botBusy) return;
+    var s = game.state;
+    if (s.ended || s.turn !== 2) return;
+    botBusy = true; render();
+    setTimeout(function () {
+      botBusy = false;
+      if (!botOn() || game.state.ended || game.state.turn !== 2) { render(); return; }
+      var m = BOT.choose(game, 2);
+      if (afterPass && m >= 0 && game.state.mode === 'go') { var t = game.legal(m, 2); if (!t.ok || !t.captured.length) m = -1; }
+      if (m < 0) {
+        var r0 = game.pass(); render();
+        if (r0.ended) { showEnd(); return; }
+        say('电脑虚手。你也虚手就结束数子。 · Computer passed. Pass too and the game ends.');
+        return;
+      }
+      var r = game.play(m);
+      click(r.captured.length ? 'capture' : 'stone');
+      render();
+      if (r.captured.length) say('电脑提了 ' + r.captured.length + ' 子 · Computer captured ' + r.captured.length, 'alert');
+      else if (prefs.hints && game.atariStones().length) say('红点的子只剩一口气了 · Stones with a red dot have one breath left', 'alert');
+      else say('该你了 · Your turn');
+      if (r.ended) setTimeout(showEnd, 350);
+    }, 550);
+  }
+
+  function who(c) { return c === 1 ? (prefs.nameB || '黑') : (prefs.nameW || '白'); }
+  function whoEn(c) { return c === 1 ? 'Black' : 'White'; }
+
+  function tryPlay(i) {
+    if (replay) { say('复盘中：用上面的按钮翻看，或者回到棋局 · Replay: use the buttons above, or go back to the game'); return; }
+    if (lesson) { lessonPlay(i); return; }
+    var s = game.state;
+    if (s.ended) { showEnd(); return; }
+    if (botOn() && (botBusy || s.turn === 2)) { say('电脑在想 · Computer is thinking'); return; }
+    if (prefs.confirm && pending !== i) {
+      var t = game.legal(i);
+      if (!t.ok) { explain(t.reason); return; }
+      pending = i; render();
+      say('再点一下这里就落子 · Tap the same spot again to place', '');
+      return;
+    }
+    var r = game.play(i);
+    pending = -1; countShown = false;
+    if (!r.ok) { explain(r.reason); render(); return; }
+    click(r.captured.length ? 'capture' : 'stone');
+    render();
+    var mover = 3 - game.state.turn;
+    if (r.captured.length) say(who(mover) + ' 提了 ' + r.captured.length + ' 子！ · ' + whoEn(mover) + ' captured ' + r.captured.length + '.', 'good');
+    else if (prefs.hints && game.atariStones().length) say('红点的子只剩一口气了 · Stones with a red dot have one breath left', 'alert');
+    else say('');
+    if (r.ended) { setTimeout(showEnd, 350); return; }
+    maybeBot();
+  }
+
+  function explain(reason) {
+    if (reason === 'occupied') say('这里已经有子了 · That spot is taken', 'alert');
+    else if (reason === 'suicide') say('这里没有气，不能下 · No breaths there, not allowed', 'alert');
+    else if (reason === 'ko') say('打劫：先在别处下一手再回来提 · Ko: play elsewhere first, then retake', 'alert');
+    else if (reason === 'ended') showEnd();
+  }
+
+  function doPass() {
+    if (lesson) return;
+    var s = game.state;
+    if (s.ended) return;
+    if (botOn() && (botBusy || s.turn === 2)) return;
+    var mover = s.turn;
+    var r = game.pass();
+    pending = -1; countShown = false; render();
+    if (r.ended) { showEnd(); return; }
+    say(who(mover) + ' 虚手。再虚手一次就结束数子。 · ' + whoEn(mover) + ' passed. Another pass ends the game.');
+    maybeBot(true);
+  }
+
+  function doUndo() {
+    if (lesson || replay || botBusy) return;
+    var r = game.undo();
+    if (botOn()) { while (game.state.turn === 2 && game.canUndo()) game.undo(); }
+    pending = -1; countShown = false; render();
+    if (r.ok) say('悔了一手 · Took back a move'); else say('');
+  }
+
+  function doCount() {
+    if (lesson || game.state.mode !== 'go') return;
+    countShown = !countShown; render();
+    if (countShown) {
+      var sc = game.score();
+      say('现在：黑 ' + sc.black + ' 目，白 ' + sc.white + ' 目（含贴目 ' + sc.komi + '）。小方块是各自围住的地方。 · Now: Black ' + sc.black + ', White ' + sc.white + ' (komi ' + sc.komi + ').');
+    } else say('');
+  }
+
+  function showEnd() {
+    var s = game.state, res = s.result;
+    if (!res) return;
+    if (!gameCounted) { gameCounted = true; stats.games += 1; store.set('stats', stats); render(); click('win'); }
+    $('endNth').textContent = '第 ' + stats.games + ' 局 · GAME ' + stats.games;
+    if (res.winner === 0) { $('endTitle').textContent = '平手'; $('endWho').textContent = '不分胜负 · A draw'; }
+    else { $('endTitle').textContent = '赢了！'; $('endWho').textContent = who(res.winner) + ' · ' + whoEn(res.winner) + ' wins'; }
+    var why = '';
+    if (res.reason === 'capture') why = '先吃到 ' + s.target + ' 颗子 · First to capture ' + s.target;
+    else if (res.reason === 'passes') why = '提子 ' + res.captures[1] + ' 比 ' + res.captures[2] + ' · Captures ' + res.captures[1] + ' to ' + res.captures[2];
+    else if (res.reason === 'resign') why = '对方认输 · By resignation';
+    else if (res.reason === 'score') why = '黑 ' + res.score.black + ' 目 · 白 ' + res.score.white + ' 目（含贴目 ' + res.score.komi + '） · Black ' + res.score.black + ' vs White ' + res.score.white + ' (komi ' + res.score.komi + ')';
+    $('endWhy').textContent = why;
+    show('end');
+  }
+
+  function show(id) { $(id).hidden = false; }
+  function hide(id) { $(id).hidden = true; }
+
+  // ---------- lessons ----------
+  function startLesson(n) {
+    if (!LESSONS) return;
+    if (replay) exitReplay();
+    hide('end');
+    if (n < 0) n = 0; if (n >= LESSONS.LESSONS.length) n = LESSONS.LESSONS.length - 1;
+    if (!lesson) savedGame = game;
+    var L = LESSONS.LESSONS[n];
+    lesson = { n: n, def: L, moves: 0, done: false, busy: false };
+    game = LESSONS.setupEngine(createEngine, L);
+    pending = -1; countShown = false; hintPoints = [];
+    document.body.classList.add('lesson-on');
+    hide('learn');
+    $('lessonNum').textContent = '第 ' + (n + 1) + ' 课 / ' + LESSONS.LESSONS.length + ' · LESSON ' + (n + 1);
+    $('lessonTitle').innerHTML = '';
+    $('lessonTitle').appendChild(document.createTextNode(L.zh));
+    var sm = document.createElement('small'); sm.textContent = L.en; $('lessonTitle').appendChild(sm);
+    $('lessonIntro').innerHTML = '';
+    $('lessonIntro').appendChild(document.createTextNode(L.intro));
+    var en = document.createElement('span'); en.className = 'en'; en.textContent = L.introEn; $('lessonIntro').appendChild(en);
+    $('lessonNext').disabled = false;
+    $('lessonNext').querySelector('.zh').textContent = n === LESSONS.LESSONS.length - 1 ? '学完了' : '下一课';
+    $('lessonNext').querySelector('.en').textContent = n === LESSONS.LESSONS.length - 1 ? 'Done' : 'Next lesson';
+    paintDots();
+    render();
+    say('黑先，轮到你 · Black to play: your move');
+  }
+  function paintDots() {
+    var d = $('lessonDots'); d.innerHTML = '';
+    LESSONS.LESSONS.forEach(function (L, i) {
+      var b = document.createElement('button'); b.className = 'dot' + (learned[L.id] ? ' done' : '') + (lesson && lesson.n === i ? ' cur' : '');
+      b.setAttribute('aria-label', '第 ' + (i + 1) + ' 课 ' + L.zh); b.addEventListener('click', function () { startLesson(i); });
+      d.appendChild(b);
+    });
+  }
+  function exitLesson() {
+    lesson = null; hintPoints = [];
+    document.body.classList.remove('lesson-on');
+    game = savedGame || createEngine(gameOpts());
+    render(); say('');
+  }
+  function lessonWin() {
+    lesson.done = true; learned[lesson.def.id] = true; store.set('lessons', learned);
+    click('win'); hintPoints = []; paintDots(); render();
+    say('做对了！' + lesson.def.lesson + ' · Correct! ' + lesson.def.lessonEn, 'good');
+  }
+  function lessonFail(msg) {
+    say(msg, 'alert');
+    lesson.busy = true;
+    setTimeout(function () { if (lesson) { lesson.busy = false; startLesson(lesson.n); say(msg + ' — 再试一次 · Try again', 'alert'); } }, 1300);
+  }
+  function lessonPlay(i) {
+    if (lesson.done || lesson.busy) return;
+    var def = lesson.def;
+    var r = game.play(i);
+    if (!r.ok) { explain(r.reason); return; }
+    lesson.moves += 1; hintPoints = [];
+    click(r.captured.length ? 'capture' : 'stone'); render();
+    if (!LESSONS.isMulti(def)) {
+      if (LESSONS.checkInstant(def, game, r)) lessonWin();
+      else { lesson.busy = true; say('不是这里 · Not there', 'alert'); setTimeout(function () { game.undo(); render(); if (lesson) { lesson.busy = false; lesson.moves -= 1; say('再想想：' + def.intro + ' · Think again', 'alert'); } }, 700); }
+      return;
+    }
+    var st = LESSONS.checkChase(def, game, lesson.moves);
+    if (st === 'win') { lessonWin(); return; }
+    if (st === 'fail') { lessonFail('白棋跑掉了 · White got away'); return; }
+    lesson.busy = true;
+    setTimeout(function () {
+      if (!lesson) return;
+      var w = LESSONS.autoReply(game, def);
+      lesson.busy = false; render();
+      var st2 = LESSONS.checkChase(def, game, lesson.moves);
+      if (st2 === 'win') { lessonWin(); return; }
+      if (st2 === 'fail') { lessonFail('白棋跑掉了 · White got away'); return; }
+      if (w >= 0 && game.state.captures[2] > 0 && def.goal.type === 'snapback') say('白棋吃掉了你送的子。现在呢？ · White took the bait. Now what?');
+      else say('白棋想跑。继续！ · White is running. Keep going!');
+    }, 350);
+  }
+
+  // ---------- replay ----------
+  function coord(i) { var c = i % N, r = (i / N) | 0; return String.fromCharCode(65 + c + (c >= 8 ? 1 : 0)) + (N - r); }
+  function startReplay() {
+    if (lesson || replay || game.moveCount() === 0) return;
+    var s = game.state;
+    savedGame = game;
+    replay = { moves: s.moves.slice(), opts: { size: N, mode: s.mode, target: s.target, komi: s.komi, handicap: s.handicap }, pos: s.moves.length };
+    document.body.classList.add('replay-on'); hide('end');
+    paintReplay();
+  }
+  function paintReplay() {
+    var e = createEngine(replay.opts);
+    for (var k = 0; k < replay.pos; k++) { var m = replay.moves[k]; if (m.type === 'pass') e.pass(); else e.play(m.i); }
+    game = e; pending = -1; countShown = false; hintPoints = []; render();
+    var total = replay.moves.length, last = replay.pos > 0 ? replay.moves[replay.pos - 1] : null;
+    var desc = last ? (who(last.color) + (last.type === 'pass' ? ' 虚手' : ' 下在 ' + coord(last.i)) + (last.captured && last.captured.length ? '，提 ' + last.captured.length + ' 子' : '')) : '开局 · Start';
+    $('replayNum').textContent = '第 ' + replay.pos + ' / ' + total + ' 手 · ' + desc;
+    $('rpBack').disabled = $('rpFirst').disabled = replay.pos === 0;
+    $('rpFwd').disabled = $('rpLast').disabled = replay.pos === total;
+    say('');
+  }
+  function exitReplay() {
+    if (!replay) return;
+    replay = null; document.body.classList.remove('replay-on');
+    game = savedGame; savedGame = null; render(); say('');
+    if (game.state.ended) showEnd();
+  }
+  $('btnReplay').addEventListener('click', startReplay);
+  $('endReplay').addEventListener('click', startReplay);
+  $('rpFirst').addEventListener('click', function () { if (replay) { replay.pos = 0; paintReplay(); } });
+  $('rpBack').addEventListener('click', function () { if (replay && replay.pos > 0) { replay.pos--; paintReplay(); } });
+  $('rpFwd').addEventListener('click', function () { if (replay && replay.pos < replay.moves.length) { replay.pos++; paintReplay(); } });
+  $('rpLast').addEventListener('click', function () { if (replay) { replay.pos = replay.moves.length; paintReplay(); } });
+  $('rpExit').addEventListener('click', exitReplay);
+
+  // ---------- setup sheet ----------
+  var draft = {};
+  function openSetup() {
+    draft = { mode: prefs.mode, target: prefs.target, handicap: prefs.handicap, komi: prefs.komi, confirm: prefs.confirm, facing: prefs.facing, big: prefs.big, bot: prefs.bot };
+    $('inB').value = prefs.nameB; $('inW').value = prefs.nameW;
+    paintSetup(); show('setup');
+  }
+  function paintSetup() {
+    document.querySelectorAll('#modeChoices .choice').forEach(function (c) { c.classList.toggle('on', c.dataset.mode === draft.mode); });
+    $('captureOpts').hidden = draft.mode !== 'capture';
+    $('goOpts').hidden = draft.mode !== 'go';
+    document.querySelectorAll('#targetRow .chip').forEach(function (c) { c.classList.toggle('on', +c.dataset.target === draft.target); });
+    document.querySelectorAll('#handicapRow .chip').forEach(function (c) { c.classList.toggle('on', +c.dataset.h === draft.handicap); });
+    document.querySelectorAll('#komiRow .chip').forEach(function (c) { c.classList.toggle('on', +c.dataset.komi === draft.komi); });
+    $('chipConfirm').classList.toggle('on', !!draft.confirm);
+    $('chipFacing').classList.toggle('on', !!draft.facing);
+    $('chipBig').classList.toggle('on', !!draft.big);
+    document.querySelectorAll('#botRow .chip').forEach(function (c) { c.classList.toggle('on', (c.dataset.bot === '1') === !!draft.bot); });
+    $('inW').disabled = !!draft.bot;
+    if (draft.bot) $('inW').value = '电脑'; else if ($('inW').value === '电脑') $('inW').value = prefs.nameW === '电脑' ? '奶奶' : prefs.nameW;
+  }
+  $('botRow').addEventListener('click', function (e) { var c = e.target.closest('.chip'); if (!c) return; draft.bot = c.dataset.bot === '1'; paintSetup(); });
+  $('modeChoices').addEventListener('click', function (e) { var c = e.target.closest('.choice'); if (!c) return; draft.mode = c.dataset.mode; if (draft.mode === 'go' && draft.handicap > 1) draft.komi = 0; paintSetup(); });
+  $('targetRow').addEventListener('click', function (e) { var c = e.target.closest('.chip'); if (!c) return; draft.target = +c.dataset.target; paintSetup(); });
+  $('handicapRow').addEventListener('click', function (e) { var c = e.target.closest('.chip'); if (!c) return; draft.handicap = +c.dataset.h; if (draft.handicap > 1) draft.komi = 0; paintSetup(); });
+  $('komiRow').addEventListener('click', function (e) { var c = e.target.closest('.chip'); if (!c) return; draft.komi = +c.dataset.komi; paintSetup(); });
+  $('chipConfirm').addEventListener('click', function () { draft.confirm = !draft.confirm; paintSetup(); });
+  $('chipFacing').addEventListener('click', function () { draft.facing = !draft.facing; paintSetup(); });
+  $('chipBig').addEventListener('click', function () { draft.big = !draft.big; paintSetup(); });
+  document.querySelectorAll('.names .row').forEach(function (row) {
+    row.addEventListener('click', function (e) { var c = e.target.closest('.chip'); if (!c) return; $(row.dataset.for).value = c.textContent; });
+  });
+  $('setupCancel').addEventListener('click', function () { hide('setup'); });
+  $('setupStart').addEventListener('click', function () {
+    prefs.mode = draft.mode; prefs.target = draft.target; prefs.handicap = draft.handicap; prefs.komi = draft.komi; prefs.confirm = draft.confirm; prefs.facing = draft.facing; prefs.big = draft.big; prefs.bot = draft.bot;
+    prefs.nameB = ($('inB').value || '').trim().slice(0, 12) || '黑';
+    prefs.nameW = prefs.bot ? '电脑' : (($('inW').value || '').trim().slice(0, 12) || '白');
+    botBusy = false;
+    store.set('prefs', prefs); applyPrefs();
+    if (replay) { replay = null; savedGame = null; document.body.classList.remove('replay-on'); }
+    if (lesson) { lesson = null; savedGame = null; document.body.classList.remove('lesson-on'); }
+    newGame(gameOpts());
+  });
+  function gameOpts() { return { size: N, mode: prefs.mode, target: prefs.target, handicap: prefs.mode === 'go' ? prefs.handicap : 0, komi: prefs.mode === 'go' ? prefs.komi : 0 }; }
+
+  // ---------- tutorial diagrams ----------
+  function miniBoard(svg, stones, marks) {
+    svg.innerHTML = '';
+    el('rect', { x: 0, y: 0, width: 150, height: 150, fill: 'var(--kaya)' }, svg);
+    var g = el('g', { stroke: 'var(--kaya-line)', 'stroke-width': 1.2 }, svg);
+    for (var i = 0; i < 5; i++) { var p = 15 + i * 30; el('line', { x1: 15, y1: p, x2: 135, y2: p }, g); el('line', { x1: p, y1: 15, x2: p, y2: 135 }, g); }
+    (marks || []).forEach(function (m) { el('circle', { cx: 15 + m[1] * 30, cy: 15 + m[0] * 30, r: 7, fill: 'none', stroke: 'var(--seal)', 'stroke-width': 2.5, 'stroke-dasharray': m[2] ? '3 3' : '' }, svg); });
+    stones.forEach(function (s) { el('circle', { cx: 15 + s[1] * 30, cy: 15 + s[0] * 30, r: 13, fill: s[2] === 1 ? 'url(#gB)' : 'url(#gW)', filter: 'url(#sh)' }, svg); });
+  }
+  function drawLessons() {
+    miniBoard($('l1'), [[1, 1, 1], [2, 3, 2], [3, 1, 1]], [[1, 3, 1]]);
+    miniBoard($('l2'), [[2, 2, 2]], [[1, 2], [3, 2], [2, 1], [2, 3]]);
+    miniBoard($('l3'), [[2, 2, 2], [1, 2, 1], [3, 2, 1], [2, 1, 1], [2, 3, 1]], [[2, 2]]);
+    miniBoard($('l4'), [[0, 2, 1], [1, 2, 1], [2, 2, 1], [3, 2, 1], [4, 2, 1], [0, 3, 2], [1, 3, 2], [2, 3, 2], [3, 3, 2], [4, 3, 2]], []);
+  }
+
+  // ---------- wiring ----------
+  board.addEventListener('click', function (e) { var t = e.target.closest('.pt'); if (!t) return; tryPlay(+t.dataset.i); });
+  board.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { var t = e.target.closest('.pt'); if (t) { e.preventDefault(); tryPlay(+t.dataset.i); } } });
+  $('btnUndo').addEventListener('click', doUndo);
+  $('btnPass').addEventListener('click', doPass);
+  $('btnCount').addEventListener('click', doCount);
+  $('btnHint').addEventListener('click', function () { prefs.hints = !prefs.hints; store.set('prefs', prefs); render(); say(prefs.hints ? '提示已打开：只剩一口气的子会标红点 · Hints on' : '提示已关闭 · Hints off'); });
+  $('btnSound').addEventListener('click', function () { prefs.sound = !prefs.sound; store.set('prefs', prefs); render(); if (prefs.sound) click('stone'); });
+  $('btnNew').addEventListener('click', function () { if (replay) exitReplay(); if (game.moveCount() > 0 && !game.state.ended) { openSetup(); } else newGame(gameOpts()); });
+  $('btnSetup').addEventListener('click', openSetup);
+  $('btnLearn').addEventListener('click', function () { show('learn'); });
+  $('btnLessons').addEventListener('click', function () { startLesson(lesson ? lesson.n : firstUnlearned()); });
+  $('learnClose').addEventListener('click', function () { hide('learn'); store.set('seenLearn', true); });
+  $('learnLessons').addEventListener('click', function () { hide('learn'); store.set('seenLearn', true); startLesson(firstUnlearned()); });
+  $('lessonHint').addEventListener('click', function () { if (!lesson || lesson.done) return; hintPoints = lesson.def.hints.map(idx); render(); say('虚线圈的地方试试 · Try the dotted circle'); });
+  $('lessonRetry').addEventListener('click', function () { if (lesson) startLesson(lesson.n); });
+  $('lessonExit').addEventListener('click', exitLesson);
+  $('lessonNext').addEventListener('click', function () {
+    if (!lesson) return;
+    if (lesson.n >= LESSONS.LESSONS.length - 1) {
+      exitLesson();
+      var n = Object.keys(learned).length, total = LESSONS.LESSONS.length;
+      if (n >= total) { $('badgeWhy').textContent = (prefs.nameB || '') + ' · ' + new Date().toLocaleDateString(); show('badge'); click('win'); }
+      else say('还有 ' + (total - n) + ' 招没做对，绿点是学会的。 · ' + (total - n) + ' techniques left; green dots are done.', 'good');
+    } else startLesson(lesson.n + 1);
+  });
+  $('badgeClose').addEventListener('click', function () { hide('badge'); });
+  function firstUnlearned() { for (var i = 0; i < LESSONS.LESSONS.length; i++) if (!learned[LESSONS.LESSONS[i].id]) return i; return 0; }
+  $('endAgain').addEventListener('click', function () { newGame(gameOpts()); });
+  $('endChange').addEventListener('click', function () { hide('end'); openSetup(); });
+  $('endReview').addEventListener('click', function () { hide('end'); say('棋局已结束。点“新开一局”再来。 · Game over. Tap New game to play again.'); });
+  document.querySelectorAll('.sheet-bg').forEach(function (bg) { bg.addEventListener('click', function (e) { if (e.target === bg && bg.id !== 'end') { bg.hidden = true; if (bg.id === 'learn') store.set('seenLearn', true); } }); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { hide('setup'); hide('learn'); } });
+  function copyText(text, okMsg) {
+    var done = function () { say(okMsg, 'good'); };
+    var fail = function () { say(text); };
+    try { navigator.clipboard.writeText(text).then(done, fail); } catch (e) { fail(); }
+  }
+  $('btnShare').addEventListener('click', function () { copyText(location.href.split('#')[0], '链接已复制，发给家人吧 · Link copied'); });
+  $('btnInvite').addEventListener('click', function () {
+    var url = location.href.split('#')[0];
+    copyText('我们在玩「手谈」：不用说话也能一起下的围棋，三岁到九十三岁都行，一分钟学会。打开就能玩，不用下载：' + url + '\nWe have been playing GoBetween, a tiny 9×9 Go game for grandparents and grandchildren. No words needed, nothing to install: ' + url, '邀请话已复制，粘贴到微信就行 · Invitation copied');
+  });
+
+  // ---------- hot reload (viewer republish) ----------
+  function snapshot() { var live = (lesson || replay) ? savedGame : game; return { game: live ? live.toJSON() : null, prefs: prefs, stats: stats, learned: learned, lessonN: lesson ? lesson.n : -1 }; }
+  try { if (window.claude && window.claude.hot && window.claude.hot.snapshot) window.claude.hot.snapshot(snapshot); } catch (e) {}
+
+  function start(data) {
+    drawBoardBase(); drawLessons(); applyPrefs();
+    if (data && data.game && data.game.snap) {
+      try {
+        if (data.prefs) prefs = Object.assign({}, DEFAULTS, data.prefs); if (data.stats) stats = data.stats; if (data.learned) learned = data.learned;
+        applyPrefs(); game = loadEngine(data.game); render(); say('');
+        if (typeof data.lessonN === 'number' && data.lessonN >= 0) startLesson(data.lessonN);
+        else maybeBot();
+        return;
+      } catch (e) {}
+    }
+    newGame(gameOpts());
+    if (!store.get('seenLearn', false)) show('learn');
+  }
+  try {
+    if (window.claude && window.claude.hot && window.claude.hot.ready) window.claude.hot.ready(start);
+    else start(window.claude && window.claude.hot ? window.claude.hot.data : null);
+  } catch (e) { start(null); }
+})();
+</script>
+
+</body>
+</html>
